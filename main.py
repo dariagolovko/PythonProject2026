@@ -17,7 +17,7 @@ from strategy import(
 )
 
 df = pd.read_csv(
-    "AirQualityUCI.csv",
+    "data/AirQualityUCI.csv",
     sep=";",
     decimal=",",
     na_values=-200,
@@ -87,5 +87,5 @@ print("\n--- Повторная валидация после очистки ---
 errors_after = run_validation(df, numeric_cols)
 
 # Сохраняем результат
-df.to_csv("AirQuality_cleaned.csv", index=False)
+df.to_csv("data/AirQuality_cleaned.csv", index=False)
 print("Очищенные данные сохранены в 'AirQuality_cleaned.csv'")
