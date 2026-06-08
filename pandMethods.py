@@ -79,7 +79,7 @@ class PandasAirQualityEngine:
 # Пример изолированного запуска для проверки:
 if __name__ == "__main__":
     # Укажите правильный путь к вашему файлу AirQualityUCI.csv
-    input_file = "AirQualityUCI.csv" 
+    input_file = "data/AirQualityUCI.csv" 
     output_file = "data/air_quality_monthly_report.csv"
     
     if os.path.exists(input_file):
