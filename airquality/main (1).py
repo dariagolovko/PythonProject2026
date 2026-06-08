@@ -17,7 +17,7 @@ from strategy import(
 )
 
 df = pd.read_csv(
-    "AirQualityUCI.csv",
+    "data/AirQualityUCI.csv",
     sep=";",
     decimal=",",
     na_values=-200,
@@ -51,7 +51,7 @@ print(f"Пропусков до обработки: {df[numeric_cols].isnull().s
 
 #Заполняем загрязнители медианой (устойчива к выбросам)
 filler = FillGapStrategy(FillMedianStrategy())
-pollutants = ['CO(GT)', 'C6H6(GT)', 'NOx(GT)', 'NO2(GT)']
+pollutants = ['CO(GT)', 'C6H6(GT)', 'NOx(GT)', 'NO2(GT)', 'NMHC(GT)']
 existing_pollutants = [col for col in pollutants if col in df.columns]
 if existing_pollutants:
     df = filler.apply_to_selected_columns(df, existing_pollutants)
@@ -88,4 +88,4 @@ errors_after = run_validation(df, numeric_cols)
 
 # Сохраняем результат
 df.to_csv("AirQuality_cleaned.csv", index=False)
-print("Очищенные данные сохранены в 'AirQuality_cleaned.csv'")
+print("Очищенные данные сохранены в 'data/AirQuality_cleaned.csv'")
