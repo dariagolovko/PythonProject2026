@@ -58,7 +58,7 @@ class FillGapStrategy:
             raise ValueError("Стратегия не установлена")
         result = df.copy()
         for column in columns:
-            self.apply_to_column(result[column], result)
+            result[column] = self.apply_to_column(result[column], result)
         return result
 
 
