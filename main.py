@@ -51,7 +51,7 @@ print(f"Пропусков до обработки: {df[numeric_cols].isnull().s
 
 #Заполняем загрязнители медианой (устойчива к выбросам)
 filler = FillGapStrategy(FillMedianStrategy())
-pollutants = ['CO(GT)', 'C6H6(GT)', 'NOx(GT)', 'NO2(GT)']
+pollutants = ['CO(GT)', 'C6H6(GT)', 'NOx(GT)', 'NO2(GT)', 'NMHC(GT)']
 existing_pollutants = [col for col in pollutants if col in df.columns]
 if existing_pollutants:
     df = filler.apply_to_selected_columns(df, existing_pollutants)
