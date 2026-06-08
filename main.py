@@ -1,89 +1,91 @@
 import pandas as pd
-from exceptions import (
-    AirQualityError,
-    SensorMalfunctionError,
-    HealthStandardExceededError,
-    DataGapError
-)
+
 from decorator import timer_decorator
 
-def check_sensor_malfunction(value, column, row):
-    """Проверка на пропущенные данные."""
-    if pd.isna(value):
-        raise SensorMalfunctionError(sensor_column=column, date=row['Date'], time=row['Time'])
+from validators import (
+    AirQualityValidator,
+    SensorMalfunctionRule,
+    HealthStandardRule,
+    DataGapRule,
+)
+from strategy import(
+    FillGapStrategy,
+    FillMedianStrategy,
+    FillMeanStrategy,
+    FillPreviousStrategy,
+    DropRowStrategy
+)
 
-def check_health_standard(value, column, row):
-    """Проверка превышения норм для конкретного вещества."""
-    standards = {
-        'CO(GT)': 30.0,  # мг/м³ (среднечасовая норма)
-        'NO2(GT)': 200.0,  # мкг/м³ (среднечасовая норма)
-        'C6H6(GT)': 5.0,  # мкг/м³ (бензол, примерная норма)
-        'NOx(GT)': 200.0,  # мкг/м³ (оксиды азота)
-    }
-    if column in standards:
-        if not pd.isna(value) and value > standards[column]:
-            raise HealthStandardExceededError(
-                pollutant=column,
-                value=value,
-                standard=standards[column],
-                date=row['Date'],
-                time=row['Time'],
-            )
+df = pd.read_csv(
+    "AirQualityUCI.csv",
+    sep=";",
+    decimal=",",
+    na_values=-200,
+)
 
-def check_data_gap(df, column, max_gap_hours):
-    df['datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%d/%m/%Y %H.%M.%S')
-    count = 0
-    mx = 0
-    current_start = df['datetime'].iloc[0]
-    current_end = current_start
-    start = current_start
-    end = current_end
-    for idx, row in df.iterrows():
-        if pd.isna(row[column]):
-            if count == 0:
-                current_start = row['datetime']
-                current_end = current_start
-            count += 1
-            if count > mx:
-               start = current_start
-               end = current_end
-               mx = count
-            else:
-               current_end = row['datetime']
-        else:
-            count = 0
-    if mx > max_gap_hours:
-        raise DataGapError(column, mx, start, end)
+df = df.dropna(how="all", axis=1).dropna(how="all")
 
-df = pd.read_csv('AirQualityUCI.csv', sep=';', decimal=',', na_values=-200)
-df = df.dropna(how='all', axis=1).dropna(how='all')
+numeric_cols = df.select_dtypes(include="number").columns
 
-numeric_cols = df.select_dtypes(include='number').columns
 
 @timer_decorator
-def checker(df, numeric_cols):
-    errors = []
-    for idx, row in df.iterrows():
-        for col in numeric_cols:
-            value = row[col]
-            try:
-                check_sensor_malfunction(value, col, row)
-                check_health_standard(value, col, row)
-            except (SensorMalfunctionError, HealthStandardExceededError) as e:
-                errors.append(e)
+def run_validation(df, numeric_cols):
+    validator = AirQualityValidator(
+        rules=[
+            SensorMalfunctionRule(),
+            HealthStandardRule(),
+            DataGapRule(max_gap_hours=10),
+        ]
+    )
+
+    errors = validator.validate(df, numeric_cols)
+
     print(f"Найдено ошибок: {len(errors)}\n")
+
     return errors
 
-@timer_decorator
-def search_gaps(df, numeric_cols):
-    big_gaps = []
-    for col in numeric_cols:
-        try:
-            check_data_gap(df, col, 10)
-        except DataGapError as e:
-            big_gaps.append(e)
-    print(f"Найдено больших пропусков: {len(big_gaps)}\n")
-    return big_gaps
 
-errors = checker(df, numeric_cols)
-big_gaps = search_gaps(df, numeric_cols)
+errors = run_validation(df, numeric_cols)
+
+print(f"Пропусков до обработки: {df[numeric_cols].isnull().sum().sum()}")
+
+#Заполняем загрязнители медианой (устойчива к выбросам)
+filler = FillGapStrategy(FillMedianStrategy())
+pollutants = ['CO(GT)', 'C6H6(GT)', 'NOx(GT)', 'NO2(GT)']
+existing_pollutants = [col for col in pollutants if col in df.columns]
+if existing_pollutants:
+    df = filler.apply_to_selected_columns(df, existing_pollutants)
+    print(f"  Заполнены медианой: {existing_pollutants}")
+
+#Заполняем метеоданные средним (более стабильны)
+filler.set_strategy(FillMeanStrategy())
+weather = ['T', 'RH', 'AH']
+existing_weather = [col for col in weather if col in df.columns]
+if existing_weather:
+    df = filler.apply_to_selected_columns(df, existing_weather)
+    print(f"  Заполнены средним: {existing_weather}")
+
+#Заполняем сенсоры предыдущим значением (для временных рядов)
+filler.set_strategy(FillPreviousStrategy())
+sensors = ['PT08.S1(CO)', 'PT08.S2(NMHC)', 'PT08.S3(NOx)', 'PT08.S4(NO2)', 'PT08.S5(O3)']
+existing_sensors = [col for col in sensors if col in df.columns]
+if existing_sensors:
+    df = filler.apply_to_selected_columns(df, existing_sensors)
+    print(f"  Заполнены предыдущим: {existing_sensors}")
+
+
+#Удаляем строки, где осталось много пропусков
+dropper = DropRowStrategy(threshold=0.3)
+df = dropper.handle(None, None, None, df)
+print(f"Пропусков после обработки: {df[numeric_cols].isnull().sum().sum()}")
+
+# Обновляем numeric_cols (на случай изменений)
+numeric_cols = df.select_dtypes(include="number").columns
+
+# Повторная валидация после очистки
+print("\n--- Повторная валидация после очистки ---")
+errors_after = run_validation(df, numeric_cols)
+
+# Сохраняем результат
+df.to_csv("AirQuality_cleaned.csv", index=False)
+print("Очищенные данные сохранены в 'AirQuality_cleaned.csv'")
