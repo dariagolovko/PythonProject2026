@@ -105,7 +105,7 @@ class StreamExporter:
 # Блок для локальной проверки работы файла напрямую
 if __name__ == "__main__":
     # Предполагаем, что файл AirQualityUCI.csv лежит в корне проекта
-    input_csv = "AirQualityUCI.csv"
+    input_csv = "data/AirQualityUCI.csv"
     output_csv = "data/stream_output_cleaned.csv"
     
     print("--- Запуск потоковой обработки (Пункт 3) ---")
