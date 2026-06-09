@@ -7,7 +7,7 @@ from typing import Generator, Dict, Any, Iterable
 # =====================================================================
 class AirQualityDataSource:
     """
-    Компонент загрузчика данных (Пункт 4).
+    Компонент загрузчика данных
     Реализует ленивое чтение CSV-файла по одной строке за раз.
     """
     def __init__(self, file_path: str, delimiter: str = ';'):
