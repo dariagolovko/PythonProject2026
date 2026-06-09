@@ -44,83 +44,55 @@ class AirQualityFilterTransformer:
         """
         Ленивый генератор, который:
         1. Очищает текстовые поля (удаляет пробелы).
-        2. Преобразует числовые маркеры пропусков (-200) в "None".
+        2. Преобразует числовые маркеры пропусков (-200) в None ВО ВСЕХ столбцах.
         3. Фильтрует поток: оставляет только вечерние замеры (с 18:00 до 23:00).
         """
         for row in self.data_stream:
-            # --- Шаг 1: Очистка "на лету" ---
-            # Убираем лишние пробелы в дате и времени
+            # --- Шаг 1: Очистка временных полей ---
             time_str = row.get('Time', '').strip()
+            date_str = row.get('Date', '').strip()
             
-            # Извлекаем час для последующей фильтрации (формат времени в датасете: HH.MM.SS)
+            # Извлекаем час для фильтрации (формат времени в датасете: HH.MM.SS)
             try:
                 hour = int(time_str.split('.')[0])
             except (ValueError, IndexError):
                 continue  # Пропускаем строку, если время повреждено
 
-            # --- Шаг 2: Нормализация аномалий ---
-            # Если значение концентрации CO(GT) равно -200 (маркер пропуска UCI), меняем его на None
-            co_value = row.get('CO(GT)', '').replace(',', '.') # Заменяем запятую на точку для чисел
-            try:
-                co_float = float(co_value)
-                if co_float == -200.0:
-                    row['CO(GT)'] = None
-                else:
-                    row['CO(GT)'] = co_float
-            except ValueError:
-                row['CO(GT)'] = None
+            # --- Шаг 2: Ленивая фильтрация по времени ---
+            # Фильтруем сразу, чтобы не тратить ресурсы на нормализацию ненужных строк
+            if not (18 <= hour <= 23):
+                continue
 
-            # --- Шаг 3: Ленивая фильтрация ---
-            # Отбираем только замеры в часы вечернего пика (например, с 18 до 23 часов)
-            if 18 <= hour <= 23:
-                yield {
-                    'Date': row.get('Date', '').strip(),
-                    'Time': time_str,
-                    'Hour': hour,
-                    'CO(GT)_Cleaned': row['CO(GT)'],
-                    'NO2(GT)': row.get('NO2(GT)', '').strip()
-                }
+            # --- Шаг 3: Динамическая нормализация аномалий по ВСЕМ столбцам ---
+            cleaned_row = {
+                'Date': date_str,
+                'Time': time_str,
+                'Hour': hour
+            }
 
+            for key, val in row.items():
+                # Пропускаем уже обработанные поля даты и времени
+                if key in ('Date', 'Time'):
+                    continue
+                
+                if val is None:
+                    cleaned_row[key] = None
+                    continue
 
-# =====================================================================
-# Компонент экспорта результатов (Пункт 4)
-# =====================================================================
-class StreamExporter:
-    """Отвечает за сохранение ленивого потока данных в файл."""
-    @staticmethod
-    def save_stream_to_csv(stream: Iterable[Dict[str, Any]], output_path: str):
-        """Построчно записывает проходящий ленивый поток в итоговый CSV."""
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
-        writer = None
-        with open(output_path, mode='w', encoding='utf-8', newline='') as file:
-            for row in stream:
-                # Инициализируем заголовки по первому пришедшему элементу
-                if writer is None:
-                    writer = csv.DictWriter(file, fieldnames=row.keys(), delimiter=';')
-                    writer.writeheader()
-                writer.writerow(row)
+                # Очищаем строку от пробелов и приводим европейский формат дробей (суффикс ,) к стандартному
+                cleaned_val = str(val).strip().replace(',', '.')
+                
+                try:
+                    # Пробуем перевести в число
+                    num_val = float(cleaned_val)
+                    # Если это маркер пропуска UCI (-200), то сбрасываем в None
+                    if num_val == -200.0:
+                        cleaned_row[key] = None
+                    else:
+                        # Если это целое число (например, 150.0), сохраняем как int для красоты, иначе float
+                        cleaned_row[key] = int(num_val) if num_val.is_integer() else num_val
+                except ValueError:
+                    # Если значение не числовое и не -200, оставляем как очищенную строку или None, если она пустая
+                    cleaned_row[key] = cleaned_val if cleaned_val != '' else None
 
-
-# Блок для локальной проверки работы файла напрямую
-if __name__ == "__main__":
-    # Предполагаем, что файл AirQualityUCI.csv лежит в корне проекта
-    input_csv = "data/AirQualityUCI.csv"
-    output_csv = "data/stream_output_cleaned.csv"
-    
-    print("--- Запуск потоковой обработки (Пункт 3) ---")
-    
-    # 1. Создаем ленивый источник данных (Итерируемый объект)
-    source = AirQualityDataSource(file_path=input_csv, delimiter=';')
-    
-    # 2. Оборачиваем его в итератор-фильтр
-    transformer = AirQualityFilterTransformer(data_stream=source)
-    
-    # 3. Получаем ленивый пайплайн (генератор)
-    clean_stream = transformer.lazy_filter_and_clean()
-    
-    # 4. Передаем поток в экспортер, который запишет данные, тратя минимум памяти
-    print("Обработка пошла... Данные читаются и пишутся построчно.")
-    StreamExporter.save_stream_to_csv(clean_stream, output_csv)
-    
-    print(f"Потоковая обработка успешно завершена! Результат сохранен в: {output_csv}")
+            yield cleaned_row

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import pandas as pd
+import math
 
 class MissingValueStrategy(ABC):
      @abstractmethod
@@ -11,7 +12,8 @@ class DropRowStrategy(MissingValueStrategy):
     def __init__(self, threshold=0.5):
         self.threshold = threshold
     def handle(self, value, series, idx, df):
-        return df.dropna(thresh=int(len(df.columns)*(1 - self.threshold)))
+        required_valid = math.ceil(len(df.columns) * (1 - self.threshold))
+        return df.dropna(thresh=required_valid)
 
 class FillMedianStrategy(MissingValueStrategy):
     """Заполняет пропуск медианным значением колонки"""

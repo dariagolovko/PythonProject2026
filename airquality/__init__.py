@@ -20,7 +20,7 @@ from .exceptions import (
     HealthStandardExceededError,
     DataGapError,
 )
-from .decorators import timer_decorator
+from .decorator import timer_decorator
 
 __all__ = [
     'FillGapStrategy',

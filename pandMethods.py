@@ -78,7 +78,7 @@ class PandasAirQualityEngine:
 if __name__ == "__main__":
     # Укажите правильный путь к вашему файлу AirQualityUCI.csv
     input_file = "data/AirQualityUCI.csv" 
-    output_file = "data/air_quality_monthly_report.csv"
+    output_file = "data/air_quality_pandas_cleaned.csv"
     
     if os.path.exists(input_file):
         engine = PandasAirQualityEngine(input_file)
