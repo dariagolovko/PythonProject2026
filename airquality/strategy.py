@@ -11,7 +11,7 @@ class DropRowStrategy(MissingValueStrategy):
     def __init__(self, threshold=0.5):
         self.threshold = threshold
     def handle(self, value, series, idx, df):
-        return df.dropna(thresh=int(len(df.columns)*(1 - self.threshold)))
+        return df.dropna(thresh=int(len(df.columns)*(1 - self.threshold)+1))
 
 class FillMedianStrategy(MissingValueStrategy):
     """Заполняет пропуск медианным значением колонки"""
