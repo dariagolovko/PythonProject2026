@@ -1,14 +1,14 @@
 import pandas as pd
 
-from decorator import timer_decorator
+from airquality.decorator import timer_decorator
 
-from validators import (
+from airquality.validators import (
     AirQualityValidator,
     SensorMalfunctionRule,
     HealthStandardRule,
     DataGapRule,
 )
-from strategy import(
+from airquality.strategy import(
     FillGapStrategy,
     FillMedianStrategy,
     FillMeanStrategy,
@@ -47,7 +47,7 @@ def run_validation(df, numeric_cols):
 
 errors = run_validation(df, numeric_cols)
 
-print(f"Пропусков до обработки: {df[numeric_cols].isnull().sum().sum()}")
+print(f"Пропусков до обработки: {df[numeric_cols].isnull().sum().sum()}\n")
 
 #Заполняем загрязнители медианой (устойчива к выбросам)
 filler = FillGapStrategy(FillMedianStrategy())
