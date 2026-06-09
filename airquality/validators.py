@@ -1,6 +1,6 @@
 import pandas as pd
 
-from exceptions import (
+from airquality.exceptions import (
     SensorMalfunctionError,
     HealthStandardExceededError,
     DataGapError,
